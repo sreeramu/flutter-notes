@@ -7,3 +7,8 @@ List<String> data = List<String>();
       InstanceMirror tt = cheaders.getField(s);
       (tt.reflectee as HashMap)["dart111CCCCCCDDDDFFF"] = data;
       //tt.invoke(#putIfAbsent, ["dart111CCCCCCDDDDFFF", () => data]);
+
+  void iset(String name,Object value){
+    _headers.remove(name);
+    _addValue(name, value);
+  }
