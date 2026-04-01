@@ -1,0 +1,86 @@
+// Combined by CRT Trader [x.com/bapiserv]
+//https://tr.tradingview.com/script/sFUTIZWq/
+//@version=6
+indicator("Signals & Overlays with Price Filter", shorttitle="S&O PF")
+length = input.int(200, minval=1, tooltip = "Length for long-term average")
+threshold = input.float(0.5, minval=0, maxval=1, tooltip = "Treshold value to detect trend direction")
+use_treshold = input.bool(false, title="Use treshold", tooltip = "Use treshold for the confirmation")
+pf = (close - ta.sma(close, length)) / ta.stdev(close, length)
+pf_color = pf > pf[1] ? color.green : color.red
+f_zero = plot(0)
+f_filter = plot(pf, linewidth=2, color = pf_color)
+plot(threshold, style = plot.style_circles )
+plot(-threshold, style = plot.style_circles )
+color_fill = pf > 0 ? color.green : color.red
+if use_treshold
+    color_fill := pf > threshold ? color.green : pf < -threshold ? color.red : color.blue
+fill(f_zero, f_filter, color_fill)
+grp_gen     = "General"
+grp_signal  = "Signals"
+grp_overlay = "Overlays"
+sensitivity = input.int(14, "Sensitivity", minval=1, group=grp_signal)
+mult        = input.float(1.5, "Multiplier", step=0.1, group=grp_signal)
+show_conf   = input.bool(false, "Confirmation Signals", group=grp_gen)
+show_contra = input.bool(true, "Contrarian Signals", group=grp_gen)
+use_filter  = input.bool(false, "Trend Filter", group=grp_gen)
+show_trail  = input.bool(true, "Smart Trail", group=grp_overlay)
+show_zones  = input.bool(true, "Reversal Zones", group=grp_overlay)
+[superTrend, dir] = ta.supertrend(mult, sensitivity)
+bool trend_bullish = dir == -1
+bool trend_bearish = dir == 1
+basis = ta.sma(close, 20)
+dev   = 2.0 * ta.stdev(close, 20)
+upper_zone = basis + dev
+lower_zone = basis - dev
+[diplus, diminus, adx] = ta.dmi(14, 14)
+bool isStrong = adx > 25
+signal_buy  = ta.crossover(close, superTrend)
+signal_sell = ta.crossunder(close, superTrend)
+rsi_val     = ta.rsi(close, 14)
+contra_buy  = low <= lower_zone and rsi_val < 30
+contra_sell = high >= upper_zone and rsi_val > 70
+valid_buy  = use_filter ? (signal_buy and adx > 20) : signal_buy
+valid_sell = use_filter ? (signal_sell and adx > 20) : signal_sell
+col_bull_strong = color.new(#00E676, 0)
+col_bull_weak   = color.new(#00E676, 40)
+col_bear_strong = color.new(#FF5252, 0)
+col_bear_weak   = color.new(#FF5252, 40)
+col_neutral     = color.purple
+color bar_color = col_neutral
+if trend_bullish
+    bar_color := isStrong ? col_bull_strong : col_bull_weak
+else if trend_bearish
+    bar_color := isStrong ? col_bear_strong : col_bear_weak
+barcolor(bar_color)
+plot(show_trail ? superTrend : na, "Trail", color = dir == -1 ? color.green : color.red, linewidth=2, force_overlay=true)
+p1 = plot(show_zones ? upper_zone : na, "Upper Zone", color=color.new(color.red, 50), force_overlay=true)
+p2 = plot(show_zones ? lower_zone : na, "Lower Zone", color=color.new(color.green, 50), force_overlay=true)
+fill(p1, p2, color=color.new(color.blue, 95))
+plotshape(show_conf and valid_buy, "Buy", shape.labelup, location.belowbar, color.green, 0, "B", color.white, size=size.small, force_overlay=true)
+plotshape(show_conf and valid_buy and isStrong, "Strong Buy", shape.labelup, location.belowbar, color.green, 0, "+", color.white, size=size.tiny, force_overlay=true)
+plotshape(show_conf and valid_sell, "Sell", shape.labeldown, location.abovebar, color.red, 0, "S", color.white, size=size.small, force_overlay=true)
+plotshape(show_conf and valid_sell and isStrong, "Strong Sell", shape.labeldown, location.abovebar, color.red, 0, "+", color.white, size=size.tiny, force_overlay=true)
+plotshape(show_contra and contra_buy, "Contra Buy", shape.circle, location.belowbar, color.purple, 0, size=size.tiny, force_overlay=true)
+plotshape(show_contra and contra_sell, "Contra Sell", shape.circle, location.abovebar, color.purple, 0, size=size.tiny, force_overlay=true)
+var table dash = table.new(position.top_right, 2, 4, bgcolor=color.new(color.black, 50), border_width=1, force_overlay=true)
+if barstate.islast
+    table.cell(dash, 0, 0, "DEĞİŞKEN", text_color=color.white, text_size=size.small, bgcolor=color.new(color.black, 20))
+    table.cell(dash, 1, 0, "DEĞER", text_color=color.white, text_size=size.small, bgcolor=color.new(color.black, 20))
+    table.cell(dash, 0, 1, "Trend", text_color=color.white, text_size=size.small)
+    table.cell(dash, 1, 1, trend_bullish ? "↗ Yükselen" : "↘ Alçalan", text_color=trend_bullish ? color.green : color.red, text_size=size.small)
+    table.cell(dash, 0, 2, "Güç", text_color=color.white, text_size=size.small)
+    table.cell(dash, 1, 2, isStrong ? "Güçlü" : "Normal", text_color=isStrong ? color.green : color.orange, text_size=size.small)
+var int lastSignal = 0
+if (valid_buy)
+    lastSignal := 1
+else if (valid_sell)
+    lastSignal := -1
+var int lastTrend = 0
+buySignal = lastTrend < 1 and pf >= threshold and lastSignal == 1
+sellSignal = lastTrend > -1 and pf <= -threshold and lastSignal == -1
+if (buySignal and not(buySignal[1]))
+    label.new(x=bar_index, y=low, text="BUY", style=label.style_label_up, color=color.green, textcolor=color.white, force_overlay=true)
+    lastTrend := 1
+if (sellSignal and not(sellSignal[1]))
+    label.new(x=bar_index, y=high, text="SELL", style=label.style_label_down, color=color.red, textcolor=color.white, force_overlay=true)
+    lastTrend := -1
